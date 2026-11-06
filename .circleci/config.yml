@@ -1,0 +1,104 @@
+version: 2.1
+
+jobs:
+  backend-build:
+    docker:
+      - image: cimg/openjdk:21.0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - maven-v1-{{ checksum "pom.xml" }}
+            - maven-v1-
+      - run:
+          name: Build backend JAR
+          command: |
+            source release.env
+            ./mvnw --batch-mode -Drevision="$RELEASE_VERSION" clean package -DskipTests
+      - save_cache:
+          key: maven-v1-{{ checksum "pom.xml" }}
+          paths:
+            - ~/.m2
+
+  backend-test:
+    docker:
+      - image: cimg/openjdk:21.0
+      - image: cimg/postgres:16.0
+        environment:
+          POSTGRES_DB: simplecrm
+          POSTGRES_USER: simplecrm
+          POSTGRES_PASSWORD: simplecrm
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/simplecrm
+      SPRING_DATASOURCE_USERNAME: simplecrm
+      SPRING_DATASOURCE_PASSWORD: simplecrm
+      SPRING_PROFILES_ACTIVE: test
+      JWT_SECRET: circleci-test-secret-circleci-test-secret
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - maven-v1-{{ checksum "pom.xml" }}
+            - maven-v1-
+      - run:
+          name: Run backend tests
+          command: |
+            source release.env
+            ./mvnw --batch-mode -Drevision="$RELEASE_VERSION" test
+      - store_test_results:
+            path: target/surefire-reports
+      - store_artifacts:
+            path: target/surefire-reports
+
+  publish:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build backend image
+          command: |
+            source release.env
+            docker build --build-arg APP_VERSION="$RELEASE_VERSION" --build-arg VCS_REF="$CIRCLE_SHA1" -t "$DOCKER_USERNAME/simple-crm-api:$RELEASE_VERSION" -t "$DOCKER_USERNAME/simple-crm-api:latest" .
+      - run:
+          name: Push images to Docker Hub
+          command: |
+            source release.env
+            echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            docker push "$DOCKER_USERNAME/simple-crm-api:$RELEASE_VERSION"
+            docker push "$DOCKER_USERNAME/simple-crm-api:latest"
+
+  deploy-render:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Redeploy backend on Render
+          command: |
+            source release.env
+            test -n "$RENDER_BACKEND_DEPLOY_HOOK"
+            curl --fail --silent --show-error --get --data-urlencode "imgURL=docker.io/$DOCKER_USERNAME/simple-crm-api:$RELEASE_VERSION" "$RENDER_BACKEND_DEPLOY_HOOK"
+
+workflows:
+  build-test-publish-deploy:
+    jobs:
+      - backend-build
+      - backend-test:
+          requires:
+            - backend-build
+      - publish:
+          context: docker-hub
+          requires:
+            - backend-test
+          filters:
+            branches:
+              only: main
+      - deploy-render:
+          context: docker-hub
+          requires:
+            - publish
+          filters:
+            branches:
+              only: main

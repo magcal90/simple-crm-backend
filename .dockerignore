@@ -1,0 +1,13 @@
+target/classes/
+target/test-classes/
+target/generated-sources/
+target/maven-status/
+.git/
+.idea/
+.vscode/
+*.iml
+*.log
+.env
+.env.*
+!.env.example
+docker-compose*.yml
