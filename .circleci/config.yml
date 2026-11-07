@@ -103,7 +103,7 @@ jobs:
           name: Trigger Render Deploy Hook
           command: |
             echo "Triggering Render to pull latest image..."
-            curl -X POST "$RENDER\_DEPLOY\_HOOK"
+            curl -X POST "$RENDER_DEPLOY_HOOK"
 
 workflows:
   build-test-publish-deploy:
