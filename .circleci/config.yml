@@ -1,47 +1,70 @@
 version: 2.1
 
 jobs:
-  backend-build:
+  build:
     docker:
       - image: cimg/openjdk:21.0
     steps:
       - checkout
       - restore_cache:
           keys:
-            - maven-v1-{{ checksum "pom.xml" }}
-            - maven-v1-
+            - maven-deps-{{ checksum "pom.xml" }}
+            - maven-deps-
       - run:
-          name: Build backend JAR
+          name: Install dependencies and build
           command: |
+            echo "Ingest the version from release.env..."
             source release.env
+            echo "Building the application..."
             ./mvnw --batch-mode -Drevision="$RELEASE_VERSION" clean package -DskipTests
       - save_cache:
-          key: maven-v1-{{ checksum "pom.xml" }}
           paths:
             - ~/.m2
+          key: maven-deps-{{ checksum "pom.xml" }}
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/*.jar
 
-  backend-test:
+  test:
     docker:
       - image: cimg/openjdk:21.0
       - image: cimg/postgres:16.0
         environment:
           POSTGRES_DB: simplecrm
           POSTGRES_USER: simplecrm
-          POSTGRES_PASSWORD: simplecrm
+          POSTGRES_PASSWORD: password
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/simplecrm
       SPRING_DATASOURCE_USERNAME: simplecrm
-      SPRING_DATASOURCE_PASSWORD: simplecrm
-      SPRING_PROFILES_ACTIVE: test
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create
       JWT_SECRET: circleci-test-secret-circleci-test-secret
     steps:
       - checkout
       - restore_cache:
           keys:
-            - maven-v1-{{ checksum "pom.xml" }}
-            - maven-v1-
+            - maven-deps-{{ checksum "pom.xml" }}
+            - maven-deps-
       - run:
-          name: Run backend tests
+          name: Install PostgreSQL client
+          command: |
+            sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run:
+          name: Wait for PostgreSQL
+          command: |
+            for i in {1..10}; do
+              if pg_isready -h localhost -p 5432 -U postgres; then
+                echo "PostgreSQL is ready!"
+                exit 0
+              fi
+              echo "Waiting for PostgreSQL... ($i/10)"
+              sleep 3
+            done
+            echo "PostgreSQL failed to start"
+            exit 1
+      - run:
+          name: Run tests
           command: |
             source release.env
             ./mvnw --batch-mode -Drevision="$RELEASE_VERSION" test
@@ -60,45 +83,30 @@ jobs:
           name: Build backend image
           command: |
             source release.env
-            docker build --build-arg APP_VERSION="$RELEASE_VERSION" --build-arg VCS_REF="$CIRCLE_SHA1" -t "$DOCKER_USERNAME/simple-crm-api:$RELEASE_VERSION" -t "$DOCKER_USERNAME/simple-crm-api:latest" .
+            docker build --build-arg APP_VERSION="$RELEASE_VERSION" --build-arg VCS_REF="$CIRCLE_SHA1" -t "$DOCKER_USERNAME/simple-crm-backend:$RELEASE_VERSION" -t "$DOCKER_USERNAME/simple-crm-backend:latest" .
       - run:
           name: Push images to Docker Hub
           command: |
             source release.env
             echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            docker push "$DOCKER_USERNAME/simple-crm-api:$RELEASE_VERSION"
-            docker push "$DOCKER_USERNAME/simple-crm-api:latest"
-
-  deploy-render:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - run:
-          name: Redeploy backend on Render
-          command: |
-            source release.env
-            test -n "$RENDER_BACKEND_DEPLOY_HOOK"
-            curl --fail --silent --show-error --get --data-urlencode "imgURL=docker.io/$DOCKER_USERNAME/simple-crm-api:$RELEASE_VERSION" "$RENDER_BACKEND_DEPLOY_HOOK"
+            docker push "$DOCKER_USERNAME/simple-crm-backend:$RELEASE_VERSION"
+            docker push "$DOCKER_USERNAME/simple-crm-backend:latest"
 
 workflows:
   build-test-publish-deploy:
     jobs:
-      - backend-build
-      - backend-test:
+      - build
+      - test:
           requires:
-            - backend-build
+            - build
       - publish:
           context: docker-hub
           requires:
-            - backend-test
+            - test
           filters:
             branches:
               only: main
-      - deploy-render:
-          context: docker-hub
-          requires:
-            - publish
-          filters:
-            branches:
-              only: main
+      
+
+
+      
