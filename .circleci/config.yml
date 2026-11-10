@@ -1,5 +1,6 @@
 version: 2.1
-
+orbs:
+  snyk: snyk/snyk@2.3.0
 jobs:
   build:
     docker:
@@ -67,11 +68,44 @@ jobs:
           name: Run tests
           command: |
             source release.env
+            echo "Running the tests..."
             ./mvnw --batch-mode -Drevision="$RELEASE_VERSION" test
       - store_test_results:
             path: target/surefire-reports
       - store_artifacts:
             path: target/surefire-reports
+  # ==========================================
+  # SNYK_SCAN JOB - Snyk: scan Maven dependencies
+  # ==========================================
+  snyk_scan:
+    docker:
+      - image: cimg/openjdk:21.0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - maven-deps-{{ checksum "pom.xml" }}
+            - maven-deps-
+      - snyk/scan:
+          fail-on-issues: false
+          severity-threshold: high
+          cli-version: 1.1308.1
+          monitor-on-build: false
+
+  # ==========================================
+  # SNYK_CODE JOB - Snyk Code: static analysis (SAST) of src/
+  # ==========================================
+  snyk_code:
+    docker:
+      - image: cimg/openjdk:21.0
+    steps:
+      - checkout
+      - snyk/scan:
+          fail-on-issues: false
+          command: code test
+          severity-threshold: high
+          cli-version: 1.1308.1
+          monitor-on-build: false
 
   publish:
     docker:
@@ -80,14 +114,16 @@ jobs:
       - checkout
       - setup_remote_docker
       - run:
-          name: Build backend image
+          name: Build image
           command: |
             source release.env
+            echo "Building the image..."
             docker build --build-arg APP_VERSION="$RELEASE_VERSION" --build-arg VCS_REF="$CIRCLE_SHA1" -t "$DOCKER_USERNAME/simple-crm-backend:$RELEASE_VERSION" -t "$DOCKER_USERNAME/simple-crm-backend:latest" .
       - run:
           name: Push images to Docker Hub
           command: |
             source release.env
+            echo "Pushing the image to Docker Hub..."
             echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker push "$DOCKER_USERNAME/simple-crm-backend:$RELEASE_VERSION"
             docker push "$DOCKER_USERNAME/simple-crm-backend:latest"
@@ -105,10 +141,37 @@ jobs:
             echo "Triggering Render to pull latest image..."
             curl -X POST "$RENDER_DEPLOY_HOOK"
 
+  # ==========================================
+  # NOTIFY JOB - Post the deployment result to Discord
+  # ==========================================
+  notify:
+    parameters:
+      result:
+        type: enum
+        enum: ["success", "failed"]
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: Send the deployment result to Discord
+          command: |
+            if [ "<< parameters.result >>" = "success" ]; then
+              MESSAGE="✅ devops-demo deployed to production - commit ${CIRCLE_SHA1:0:7} by ${CIRCLE_USERNAME}"
+            else
+              MESSAGE="❌ devops-demo deployment FAILED - commit ${CIRCLE_SHA1:0:7} by ${CIRCLE_USERNAME}. Production is still running the previous version."
+            fi
+            curl --fail --silent --show-error \
+              -H "Content-Type: application/json" \
+              -d "{\"content\": \"${MESSAGE}\"}" \
+              "$DISCORD_WEBHOOK_URL"
+            echo "Posted to Discord: ${MESSAGE}"  
+
 workflows:
-  build-test-publish-deploy:
+  build-test-scan_publish-deploy:
     jobs:
       - build
+      - snyk_scan
+      - snyk_code
       - test:
           requires:
             - build
@@ -116,6 +179,8 @@ workflows:
           context: docker-hub
           requires:
             - test
+            - snyk_scan
+            - snyk_code
           filters:
             branches:
               only: main
@@ -125,3 +190,13 @@ workflows:
           filters:
             branches:
               only: main
+      - notify:
+          name: notify-success
+          result: success
+          requires:
+            - deploy: success
+      - notify:
+          name: notify-failure
+          result: failed
+          requires:
+            - deploy: failed

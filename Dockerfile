@@ -1,5 +1,5 @@
 # Stage 1: Build the JAR with Maven
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 
 ARG APP_VERSION
 WORKDIR /workspace
