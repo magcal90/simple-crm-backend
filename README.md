@@ -12,7 +12,7 @@ The submission consists of a Dockerized Java 21 Spring Boot API, a PostgreSQL da
 | Live backend API | https://simple-crm-backend-htvk.onrender.com |
 | Live frontend | https://simple-crm-frontend.netlify.app/login |
 | Docker Hub image | https://hub.docker.com/r/magcyhdoc/simple-crm-backend |
-| CircleCI pipeline | https://app.circleci.com/workflow/d9836b95-b779-46db-ac74-7360bd5bc84f |
+| CircleCI pipeline | https://app.circleci.com/pipelines/gh/magcal90?useNewPipelines=true |
 | Frontend repository | https://github.com/magcal90/simple-crm-web |
 | Frontend GitHub Actions | https://github.com/magcal90/simple-crm-web/actions |
 
@@ -26,25 +26,33 @@ The backend and frontend use separate automated delivery pipelines. A push to ea
 flowchart LR
     A[Backend push to GitHub] --> B[CircleCI workflow]
     B --> C[Build Java application]
-    C --> D[Run automated tests with PostgreSQL]
-    D --> E[Build image using Dockerfile]
-    E --> F[Push versioned and latest images to Docker Hub]
-    F --> G[Trigger Render deploy hook]
-    G --> H[Render pulls the image and deploys the backend]
+    B --> D[Snyk dependency scan]
+    B --> E[Snyk Code scan]
+    C --> F[Run automated tests with PostgreSQL]
+    F --> G[Publish versioned and latest images to Docker Hub on main]
+    D --> G
+    E --> G
+    G --> H[Trigger Render deploy hook]
+    H -->|success| I[Send success notification to Discord]
+    H -->|failure| J[Send failure notification to Discord]
+    H --> K[Render pulls the image and deploys the backend]
 
-    I[Frontend push to GitHub] --> J[GitHub Actions workflow]
-    J --> K[Build and verify frontend]
-    K --> L[Deploy frontend to Netlify]
+    F1[Frontend push to GitHub] --> F2[GitHub Actions workflow]
+    F2 --> F3[Build and verify frontend]
+    F3 --> F4[Deploy frontend to Netlify]
 ```
 
 ### Backend: GitHub → CircleCI → Docker Hub → Render
 
-The backend pipeline is defined in [`.circleci/config.yml`](.circleci/config.yml) and runs the following jobs:
+The backend pipeline is defined in [`.circleci/config.yml`](.circleci/config.yml) and runs these jobs:
 
 1. **Build:** CircleCI checks out the GitHub repository, restores the Maven dependency cache, reads the application version from `release.env`, and packages the Spring Boot application with Java 21.
-2. **Test:** CircleCI starts a PostgreSQL 16 service container, waits for it to become ready, and runs the automated Maven test suite. Test reports are retained as CircleCI results and artifacts.
-3. **Publish:** For a successful build on the `main` branch, CircleCI builds the production container using the repository's multi-stage `Dockerfile`. It tags the image with both the release version and `latest`, then authenticates and pushes both tags to Docker Hub.
-4. **Deploy:** After publishing succeeds, CircleCI calls the secret `RENDER_DEPLOY_HOOK`. Render then pulls the latest published backend image and redeploys the service.
+2. **Snyk dependency scan:** Snyk scans the Maven dependencies for known vulnerabilities. The scan uses a high severity threshold, but findings do not fail the job (`fail-on-issues: false`).
+3. **Snyk Code scan:** Snyk Code runs static application security testing against the source code. It uses the same high severity threshold and non-blocking findings setting.
+4. **Test:** After the build succeeds, CircleCI starts a PostgreSQL 16 service container, waits for it to become ready, and runs the automated Maven test suite. Test reports are retained as CircleCI results and artifacts.
+5. **Publish:** Only on `main`, and after the tests and both Snyk jobs succeed, CircleCI builds the production container using the repository's multi-stage `Dockerfile`. It tags the image with both the release version and `latest`, then authenticates and pushes both tags to Docker Hub.
+6. **Deploy:** After publishing succeeds, CircleCI calls the secret `RENDER_DEPLOY_HOOK`. Render then pulls the latest published backend image and redeploys the service.
+7. **Discord notification:** CircleCI posts a success or failure message to Discord based on the result of the deploy-hook job. This reports whether the hook job succeeded; it does not independently verify that Render has finished starting the new deployment. Failures before the deploy job do not trigger either notification.
 
 The CircleCI project uses these protected environment values:
 
@@ -53,8 +61,10 @@ The CircleCI project uses these protected environment values:
 | `DOCKER_USERNAME` | Docker Hub account used to publish the image |
 | `DOCKER_TOKEN` | Docker Hub access token used by CircleCI |
 | `RENDER_DEPLOY_HOOK` | Private Render hook used to start deployment |
+| `SNYK_TOKEN` | Snyk API token used by the Snyk orb |
+| `DISCORD_WEBHOOK_URL` | Discord webhook used to post deployment notifications |
 
-These values are configured in CircleCI and are not stored in the repository.
+Configure these values in CircleCI as protected project environment variables or contexts (the publish job uses the `docker-hub` context). They are not stored in the repository.
 
 The `Dockerfile` is used for the deployable production image. `docker-compose.yml` is used locally to run the same backend together with PostgreSQL; it is not part of the CircleCI publish/deploy jobs.
 
@@ -66,21 +76,33 @@ The exact frontend workflow configuration and its run history are available from
 
 ### CI/CD evidence
 
-The successful CircleCI workflow completed all four backend jobs—build, test, publish, and deploy:
+The successful CircleCI workflow completed the build, both Snyk scans, tests, publish, deploy, and success-notification jobs. The failure-notification job was skipped because the deploy job succeeded:
 
-![Successful CircleCI build, test, publish, and deploy workflow](doc/images/circleci_pipeline-detail.png)
+![Successful CircleCI workflow showing build, Snyk scans, tests, publish, deploy, and Discord notification](doc/images/circleci_pipeline-detail.png)
+
+The Snyk project dashboard shows the dependency scan results for the Maven project and Dockerfile. Findings are visible in Snyk; the CircleCI configuration does not fail the pipeline for findings:
+
+![Snyk dependency scan results for the backend project](doc/images/snyk_scan.png)
+
+The success notification is posted to Discord after the deploy-hook job succeeds:
+
+![Successful CircleCI deployment notification posted to Discord](doc/images/discord-notification.png)
 
 The published Docker Hub repository contains `latest` and versioned image tags:
 
 ![Versioned Simple CRM backend images in Docker Hub](doc/images/docker-hub.png)
 
+The Docker Hub tags page shows the current `latest` tag alongside release-versioned images:
+
+![Latest and versioned Simple CRM backend image tags in Docker Hub](doc/images/docker-hub-tag.png)
+
 Render is configured as an image-based service and shows a successful deployment triggered through the deploy hook:
 
 ![Render backend deployment history showing a successful deploy-hook deployment](doc/images/render-backend.png)
 
-The frontend GitHub Actions verification workflow completed successfully:
+The frontend GitHub Actions page shows successful CI runs and OWASP ZAP baseline security scans:
 
-![Successful frontend GitHub Actions workflow](doc/images/github-action-frontend.png)
+![Successful frontend CI and OWASP ZAP baseline scan workflows](doc/images/github-zap-baseline-scan.png)
 
 Netlify shows the frontend as published from GitHub:
 
@@ -217,26 +239,6 @@ set +a
 ./mvnw --batch-mode -Drevision="$RELEASE_VERSION" verify
 ```
 
-## Assignment requirements and submission status
-
-- [x] Simple CRM selected as Option 3.
-- [x] Multi-stage `Dockerfile` added at the repository root.
-- [x] Docker Compose configuration added for the API and PostgreSQL.
-- [x] CircleCI configured to build and test the backend.
-- [x] CircleCI configured to publish versioned and `latest` images to Docker Hub.
-- [x] CircleCI configured to trigger the Render deployment after publication.
-- [x] Frontend delivery configured through GitHub Actions and Netlify.
-- [x] Backend source code pushed to GitHub.
-- [x] Backend deployed publicly on Render.
-- [x] Frontend deployed publicly on Netlify.
-- [ ] Confirm acceptance of Render as the hosting platform instead of Railway.
-- [x] Add deployment screenshots showing the active Render backend and PostgreSQL database.
-- [x] Add CI/CD screenshots showing CircleCI, Docker Hub, GitHub Actions, and Netlify.
-- [x] Add a screenshot showing the frontend populated from the live backend API.
-- [x] Add the direct URL of a successful CircleCI workflow under **Submission links**.
-- [ ] Complete a final check of the GitHub, backend, and frontend links.
-- [ ] Commit and push the final README and screenshot files.
-
 ## Known deviation and issues
 
 - **Hosting platform:** The backend is hosted on Render rather than Railway because of Railway service limitations at the time of development.
@@ -244,4 +246,4 @@ set +a
 
 ## Versioning
 
-`release.env` currently defines `RELEASE_VERSION=0.1.4`. Docker Compose passes it to the build as `APP_VERSION`, and Maven uses it as the application artifact version.
+`release.env` currently defines `RELEASE_VERSION=0.1.6`. Docker Compose passes it to the build as `APP_VERSION`, and Maven uses it as the application artifact version.

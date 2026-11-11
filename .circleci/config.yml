@@ -123,8 +123,11 @@ jobs:
           name: Push images to Docker Hub
           command: |
             source release.env
+            echo "Logging in to Docker Hub..."
+            : "${DOCKER_USERNAME:?DOCKER_USERNAME is not set}"
+            : "${DOCKER_TOKEN:?DOCKER_TOKEN is not set}"
+            printf '%s' "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
             echo "Pushing the image to Docker Hub..."
-            echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker push "$DOCKER_USERNAME/simple-crm-backend:$RELEASE_VERSION"
             docker push "$DOCKER_USERNAME/simple-crm-backend:latest"
   
@@ -156,9 +159,9 @@ jobs:
           name: Send the deployment result to Discord
           command: |
             if [ "<< parameters.result >>" = "success" ]; then
-              MESSAGE="✅ devops-demo deployed to production - commit ${CIRCLE_SHA1:0:7} by ${CIRCLE_USERNAME}"
+              MESSAGE="✅ simple-crm-backend deployed to production - commit ${CIRCLE_SHA1:0:7} by ${CIRCLE_USERNAME}"
             else
-              MESSAGE="❌ devops-demo deployment FAILED - commit ${CIRCLE_SHA1:0:7} by ${CIRCLE_USERNAME}. Production is still running the previous version."
+              MESSAGE="❌ simple-crm-backend deployment FAILED - commit ${CIRCLE_SHA1:0:7} by ${CIRCLE_USERNAME}. Production is still running the previous version."
             fi
             curl --fail --silent --show-error \
               -H "Content-Type: application/json" \
