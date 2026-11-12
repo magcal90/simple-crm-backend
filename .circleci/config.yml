@@ -140,9 +140,8 @@ jobs:
   deploy:
     docker:
       - image: cimg/base:stable
-    environment:
-      IMAGE_URL: docker.io/$DOCKER_USERNAME/simple-crm-backend:latest
     steps:
+      - checkout
       - run:
           name: Install the Render CLI
           command: |
@@ -151,11 +150,15 @@ jobs:
       - run:
           name: Redeploy latest image on Render and wait
           command: |
+            : "${RENDER_API_KEY:?RENDER_API_KEY is not set}"
+            : "${RENDER_SERVICE_ID:?RENDER_SERVICE_ID is not set}"
+            source release.env
+            IMAGE_URL="docker.io/$DOCKER_USERNAME/simple-crm-backend:$RELEASE_VERSION"
             echo "Asking Render to deploy $IMAGE_URL..."
             render deploys create "$RENDER_SERVICE_ID" \
-              --image "$IMAGE_URL" \
-              --wait --confirm --output text
-            echo "The new version is live on Render."
+            --image "$IMAGE_URL" \
+            --wait --confirm --output text
+            echo "✅ The new version is live on Render."
 
   # ==========================================
   # NOTIFY JOB - Post the deployment result to Discord
@@ -201,6 +204,7 @@ workflows:
             branches:
               only: main
       - deploy:
+          context: docker-hub
           requires:
             - publish
           filters:
