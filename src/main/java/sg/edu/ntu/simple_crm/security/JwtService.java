@@ -11,6 +11,7 @@ import org.springframework.security.core.GrantedAuthority;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 
@@ -41,15 +42,15 @@ public class JwtService {
     }
 
     private String generateToken(String username, List<String> roles) {
-        Date now = new Date();
-        Date expiry = new Date(now.getTime() + jwtExpirationMs);
+        Instant now = Instant.now();
+        Instant expiry = now.plusMillis(jwtExpirationMs);
 
         return Jwts.builder()
-                .setSubject(username)            // Who the token is for
+                .setSubject(username)
                 .claim("email", username)
                 .claim("roles", roles)
-                .setIssuedAt(now)                // When token was created
-                .setExpiration(expiry)           // When token expires
+                .setIssuedAt(Date.from(now))
+                .setExpiration(Date.from(expiry))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -69,7 +70,8 @@ public class JwtService {
 
     public String extractUsername(String token) {
         // parseClaimsJws validates the signature first, then decodes the payload.
-        // If the token was tampered with, it throws an exception before reaching getSubject().
+        // If the token was tampered with, it throws an exception before reaching
+        // getSubject().
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
                 .build()

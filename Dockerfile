@@ -3,14 +3,12 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 
 ARG APP_VERSION
 WORKDIR /workspace
-COPY .mvn .mvn
-COPY mvnw pom.xml ./
+COPY pom.xml ./
 RUN test -n "${APP_VERSION}" \
-    && chmod +x mvnw \
-    && ./mvnw --batch-mode -Drevision="${APP_VERSION}" dependency:go-offline
+    && mvn --batch-mode -Drevision="${APP_VERSION}" dependency:go-offline
 COPY src src
-RUN test "$(./mvnw -Drevision="${APP_VERSION}" help:evaluate -Dexpression=project.version -q -DforceStdout)" = "${APP_VERSION}" \
-    && ./mvnw --batch-mode -Drevision="${APP_VERSION}" clean package -DskipTests \
+RUN test "$(mvn -Drevision="${APP_VERSION}" help:evaluate -Dexpression=project.version -q -DforceStdout)" = "${APP_VERSION}" \
+    && mvn --batch-mode -Drevision="${APP_VERSION}" clean package -DskipTests \
     && cp "target/simple-crm-${APP_VERSION}.jar" target/app.jar
 
 # Stage 2: Run the JAR in a slim runtime image   

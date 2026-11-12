@@ -134,15 +134,28 @@ jobs:
   # ========================================== 
   # DEPLOY JOB - Trigger Render Redeploy 
   # ========================================== 
+    # ==========================================
+  # DEPLOY JOB - Redeploy on Render with the Render CLI
+  # ==========================================
   deploy:
     docker:
       - image: cimg/base:stable
+    environment:
+      IMAGE_URL: docker.io/$DOCKER_USERNAME/simple-crm-backend:latest
     steps:
       - run:
-          name: Trigger Render Deploy Hook
+          name: Install the Render CLI
           command: |
-            echo "Triggering Render to pull latest image..."
-            curl -X POST "$RENDER_DEPLOY_HOOK"
+            curl -fsSL https://raw.githubusercontent.com/render-oss/cli/refs/heads/main/bin/install.sh | sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
+      - run:
+          name: Redeploy latest image on Render and wait
+          command: |
+            echo "Asking Render to deploy $IMAGE_URL..."
+            render deploys create "$RENDER_SERVICE_ID" \
+              --image "$IMAGE_URL" \
+              --wait --confirm --output text
+            echo "The new version is live on Render."
 
   # ==========================================
   # NOTIFY JOB - Post the deployment result to Discord
