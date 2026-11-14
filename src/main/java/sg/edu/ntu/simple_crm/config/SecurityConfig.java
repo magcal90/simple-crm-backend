@@ -9,11 +9,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -82,27 +79,6 @@ public class SecurityConfig {
         @Bean
         public PasswordEncoder passwordEncoder() {
                 return new BCryptPasswordEncoder();
-        }
-
-        @Bean
-        public UserDetailsService userDetailsService(
-                        PasswordEncoder passwordEncoder,
-                        @Value("${app.demo-users.user-password:p@55w0rd123}") String userPassword,
-                        @Value("${app.demo-users.admin-password:p@55w0rd123}") String adminPassword,
-                        @Value("${app.demo-users.manager-password:p@55w0rd123}") String managerPassword) {
-                return new InMemoryUserDetailsManager(
-                                User.withUsername("user@example.com")
-                                                .password(passwordEncoder.encode(userPassword))
-                                                .roles("USER")
-                                                .build(),
-                                User.withUsername("admin@example.com")
-                                                .password(passwordEncoder.encode(adminPassword))
-                                                .roles("ADMIN")
-                                                .build(),
-                                User.withUsername("manager@example.com")
-                                                .password(passwordEncoder.encode(managerPassword))
-                                                .roles("MANAGER")
-                                                .build());
         }
 
 }
