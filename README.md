@@ -1,8 +1,20 @@
 # Simple CRM — Module 4 Assignment Submission
 
-This is a **AIFT01 Module 4 assignment submission**. The **Option 3** was chosen and implemented, using the Simple CRM backend and frontend instead of TaskFlow.
+This is a **AIFT01 Module 4 assignment submission**. The implementation uses the Simple CRM backend and frontend instead of TaskFlow.
 
 The submission consists of a Dockerized Java 21 Spring Boot API, a PostgreSQL database, and a React frontend connected to the deployed API. The backend is hosted on Render and the frontend is hosted on Netlify.
+
+## Assignment option coverage
+
+Option 3 is the main submission, with additional work covering Options 1, 2, 4, and 5. The assessment below uses the requirements in the assignment brief and distinguishes complete coverage from partial or equivalent implementations.
+
+| Option | Coverage | Evidence and qualification |
+| --- | --- | --- |
+| **1 — Add a CI pipeline** | **Complete** | The [CircleCI pipeline](https://app.circleci.com/pipelines/gh/magcal90?useNewPipelines=true) builds the application, runs its tests, and publishes both versioned and `latest` images to [Docker Hub](https://hub.docker.com/r/magcyhdoc/simple-crm-backend) on pushes to `main`. The workflow and successful-run evidence are documented below. |
+| **2 — Add a frontend on Netlify** | **Complete** | The [React frontend](https://simple-crm-frontend.netlify.app/login) is deployed on Netlify, calls the public backend API, and is allowed by the backend CORS configuration. A screenshot below shows customer data loaded from the API. |
+| **3 — Use the Simple CRM projects** | **Implemented with a deliberate platform substitution** | The Simple CRM backend and frontend were containerized, connected, and deployed with PostgreSQL. Because Railway was unavailable at the time of development, Render was deliberately used as the backend hosting platform; Netlify hosts the frontend. This fulfills the technical scope, with Render replacing the brief's specified Railway platform. |
+| **4 — Publish versioned Docker images** | **Complete** | Releases use Semantic Versioning from `release.env`. CircleCI publishes the release tag and moves `latest` to the same build. Docker Hub evidence below shows multiple versioned tags and `latest`; Git tags provide matching release history. |
+| **5 — Add security checks** | **Partial / equivalent tooling** | CircleCI runs Snyk dependency scanning and Snyk Code SAST, secrets are supplied through protected environment variables, and the frontend has an OWASP ZAP baseline workflow. This is partial against the exact brief because the backend uses Snyk instead of the specifically requested OWASP Dependency-Check plugin, and no container-image scan is claimed. |
 
 ## Submission links
 
@@ -169,6 +181,11 @@ If login is required, use the following test account:
 
 The password is intentionally not stored in this repository. To verify the backend directly, authenticate using the test-account password supplied with the submission:
 
+On the first application start, set `APP_BOOTSTRAP_USER_EMAIL` and
+`APP_BOOTSTRAP_USER_PASSWORD`. The application creates the account only when it
+does not already exist and persists a BCrypt hash, never the plaintext password.
+After that first successful start, the bootstrap variables may be removed.
+
 ```bash
 curl --request POST \
   --url https://simple-crm-backend-htvk.onrender.com/auth/login \
@@ -259,4 +276,7 @@ set +a
 
 ## Versioning
 
-`release.env` currently defines `RELEASE_VERSION=0.1.8`. Docker Compose passes it to the build as `APP_VERSION`, and Maven uses it as the application artifact version.
+`release.env` currently defines `RELEASE_VERSION=0.2.0`. Docker Compose passes it to the build as `APP_VERSION`, and Maven uses it as the application artifact version.
+
+## Use of AI assistance
+Generative AI tools were used to assist with test development, documentation, code refactoring, and optimization. The generated suggestions were reviewed, adapted, and validated by the developer.
