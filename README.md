@@ -111,9 +111,7 @@ The Docker Hub tags page shows the current `latest` tag alongside release-versio
 
 ![Latest and versioned Simple CRM backend image tags in Docker Hub](doc/images/docker-hub-tag.png)
 
-Render is configured as an image-based service and shows a successful deployment triggered by CircleCI through the Render CLI:
-
-![Render backend deployment history showing a successful CircleCI deployment](doc/images/render-backend.png)
+Render is configured as an image-based service and shows a successful deployment triggered by CircleCI through the Render CLI. See the single [active backend deployment screenshot](#1-active-backend-deployment) in the deployment evidence below.
 
 The frontend GitHub Actions page shows successful CI runs and OWASP ZAP baseline security scans:
 
@@ -247,9 +245,7 @@ The PostgreSQL volume persists after the containers stop. `.env` is ignored by G
 
 ### Render image-based backend service
 
-The backend is configured as an image-based Render Web Service using the `latest` image published to Docker Hub. The service is live at the public backend URL.
-
-![Render image-based backend service configuration](doc/images/render-backend.png)
+The backend is configured as an image-based Render Web Service using the `latest` image published to Docker Hub. The service is live at the public backend URL, as shown in the [active backend deployment evidence](#1-active-backend-deployment) above.
 
 ### Backend environment configuration
 
