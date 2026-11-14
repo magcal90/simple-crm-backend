@@ -1,0 +1,28 @@
+meta {
+  name: Get customer
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/customers/{{customerId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("customer can be retrieved", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("retrieved customer matches the created customer", function () {
+    const body = res.getBody();
+    expect(String(body.id)).to.equal(String(bru.getVar("customerId")));
+    expect(body.firstName).to.equal(bru.getVar("testFirstName"));
+    expect(body.email).to.equal(bru.getVar("testEmail"));
+  });
+}

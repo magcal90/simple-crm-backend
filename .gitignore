@@ -6,7 +6,6 @@ dist/
 dist-ssr/
 coverage/
 docs/
-apitest/
 .vite/
 *.class
 

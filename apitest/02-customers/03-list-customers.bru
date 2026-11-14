@@ -1,0 +1,29 @@
+meta {
+  name: List customers
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/customers
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("customer list is returned", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.be.an("array");
+  });
+
+  test("list contains the created customer", function () {
+    const customerId = String(bru.getVar("customerId"));
+    const match = res.getBody().find((customer) => String(customer.id) === customerId);
+    expect(match).to.exist;
+    expect(match.email).to.equal(bru.getVar("testEmail"));
+  });
+}
