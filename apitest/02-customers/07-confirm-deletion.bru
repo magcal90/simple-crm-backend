@@ -1,0 +1,21 @@
+meta {
+  name: Confirm customer deletion
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/customers/{{customerId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("deleted customer is no longer available", function () {
+    expect(res.getStatus()).to.equal(404);
+  });
+}

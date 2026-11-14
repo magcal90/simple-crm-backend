@@ -1,0 +1,61 @@
+meta {
+  name: Create customer
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/customers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "firstName": "{{testFirstName}}",
+    "lastName": "{{testLastName}}",
+    "email": "{{testEmail}}",
+    "phone": "+65 6123 4567",
+    "company": "Bruno Post Deployment Test",
+    "status": "active",
+    "tags": ["post-deployment", "bruno"],
+    "notes": "Created by the automated Bruno post-deployment test."
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+
+  if (res.getStatus() === 201 && body && body.id) {
+    bru.setVar("customerId", String(body.id));
+  }
+}
+
+tests {
+  test("customer is created", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("created customer has the submitted values", function () {
+    const body = res.getBody();
+    expect(body.id).to.exist;
+    expect(body.firstName).to.equal(bru.getVar("testFirstName"));
+    expect(body.lastName).to.equal(bru.getVar("testLastName"));
+    expect(body.email).to.equal(bru.getVar("testEmail"));
+    expect(body.status).to.equal("active");
+  });
+
+  test("location header points to the created customer", function () {
+    const location = res.getHeader("location");
+    expect(location).to.be.a("string");
+    expect(location).to.match(/\/customers\/\d+$/);
+  });
+}

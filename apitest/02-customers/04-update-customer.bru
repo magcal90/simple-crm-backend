@@ -1,0 +1,46 @@
+meta {
+  name: Update customer
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/customers/{{customerId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "firstName": "{{testFirstName}}",
+    "lastName": "{{testLastName}}",
+    "email": "{{testEmail}}",
+    "phone": "+65 6987 6543",
+    "company": "Bruno Updated Post Deployment Test",
+    "status": "inactive",
+    "tags": ["post-deployment", "bruno", "updated"],
+    "notes": "Updated by the automated Bruno post-deployment test."
+  }
+}
+
+tests {
+  test("customer is updated", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("updated values are returned", function () {
+    const body = res.getBody();
+    expect(String(body.id)).to.equal(String(bru.getVar("customerId")));
+    expect(body.company).to.equal("Bruno Updated Post Deployment Test");
+    expect(body.status).to.equal("inactive");
+    expect(body.tags).to.include("updated");
+  });
+}

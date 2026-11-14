@@ -1,0 +1,47 @@
+meta {
+  name: Login
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "{{userEmail}}",
+    "password": "{{userPassword}}"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+
+  if (res.getStatus() === 200 && body && body.token) {
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    bru.setVar("authToken", body.token);
+    bru.setVar("testFirstName", `Bruno${suffix}`);
+    bru.setVar("testLastName", "PostDeploy");
+    bru.setVar("testEmail", `bruno-${suffix}@example.com`);
+  }
+}
+
+tests {
+  test("login succeeds", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("response contains a JWT token", function () {
+    const body = res.getBody();
+    expect(body).to.be.an("object");
+    expect(body.token).to.be.a("string").and.not.empty;
+    expect(body.token.split(".")).to.have.length(3);
+  });
+}

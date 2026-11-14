@@ -1,0 +1,21 @@
+meta {
+  name: Delete customer
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/customers/{{customerId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+tests {
+  test("customer is deleted", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
