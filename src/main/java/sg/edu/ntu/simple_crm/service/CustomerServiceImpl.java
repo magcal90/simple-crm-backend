@@ -11,6 +11,7 @@ import sg.edu.ntu.simple_crm.model.Customer;
 import sg.edu.ntu.simple_crm.model.Interaction;
 import sg.edu.ntu.simple_crm.repository.CustomerRepository;
 import sg.edu.ntu.simple_crm.repository.InteractionRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CustomerServiceImpl implements CustomerService {
@@ -75,8 +76,14 @@ public class CustomerServiceImpl implements CustomerService {
 
     // delete
     @Override
+    @Transactional
     public void deleteCustomer(Long id) {
-        customerRepository.deleteById(id);
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new CustomerNotFoundException(id));
+
+        interactionRepository.deleteByCustomerId(id);
+        customerRepository.delete(customer);
+
         logger.info("Deleted customer with id {}", id);
     }
 
@@ -102,14 +109,14 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public List<Interaction> findInteractionsByCustomerId(Long id){
+    public List<Interaction> findInteractionsByCustomerId(Long id) {
         List<Interaction> interactions = interactionRepository.findByCustomerId(id);
         logger.info("Retrieved {} interactions for customer with id {}", interactions.size(), id);
         return interactions;
     }
 
     @Override
-    public Interaction findInteractionById(Long id, Long interactionId){
+    public Interaction findInteractionById(Long id, Long interactionId) {
         Interaction interaction = interactionRepository.findByCustomerIdAndId(id, interactionId);
         if (interaction != null) {
             logger.info("Retrieved interaction with id {} for customer with id {}", interactionId, id);
